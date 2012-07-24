@@ -15,7 +15,7 @@
 ;; and parent directories for a Makefile, fetches targets, and asks
 ;; the user which of the targets to run.
 
-;; The function is `makefile-runner--make'.
+;; The function is `makefile-runner'.
 
 ;;; Installation:
 
@@ -26,7 +26,7 @@
 
 ;; You can add a keybinding to run the function, for example:
 ;;
-;; (global-set-key (kbd "F11") 'makefile-runner--make)
+;; (global-set-key (kbd "F11") 'makefile-runner)
 
 ;;; Customization:
 
@@ -95,7 +95,7 @@ in `makefile-runner--target-exclusive-regexp'."
       targets)))
 
 ;;;###autoload
-(defun makefile-runner--make (target &optional makefile)
+(defun makefile-runner (target &optional makefile)
   "Run nearest Makefile with TARGET.
 
 When calling interactively. The targets from the nearest Makefile

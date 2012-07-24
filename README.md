@@ -16,4 +16,4 @@ your .emacs file:
 
 You can add a keybinding to run the function, for example:
 
-    (global-set-key (kbd "F11") 'makefile-runner--make)
+    (global-set-key (kbd "F11") 'makefile-runner)
