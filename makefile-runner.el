@@ -4,18 +4,20 @@
 
 ;; Author: Dan Amlund Thomsen <dan@danamlund.dk>
 ;; URL: http://danamlund.dk/emacs/make-runner.html
-;; Version: 1.0.1
+;; Version: 1.1.0
 ;; Created: 2009-01-01
 ;; By: Dan Amlund Thomsen
-;; Keywords: makefile, make
+;; Keywords: makefile, make, ant, build
 
 ;;; Commentary:
 
-;; An easy method of running Makefiles. The function searches current
-;; and parent directories for a Makefile, fetches targets, and asks
+;; An easy method of running different makefiles. The function searches current
+;; and parent directories for a makefile, fetches targets, and asks
 ;; the user which of the targets to run.
 
 ;; The function is `makefile-runner'.
+
+;; By default it supports make's Makefiles and ant's build.xml files.
 
 ;;; Installation:
 
@@ -32,8 +34,8 @@
 
 ;; M-x customize-group makefile-runner
 ;;
-;; You can change the regular expression that excludes targets by
-;; changing `makefile-runner--target-exclusive-regexp'.
+;; You can add further build systems by changing
+;; `makefile-runner--makefiles'.
 ;;
 ;; And you can set a specific Makefile to use by changing
 ;; `makefile-runner--makefile'. A better method is to add a
@@ -41,6 +43,10 @@
 ;; to the start of foo/src/foo.c:
 ;;
 ;; /* -*- makefile-runner--makefile: "../Makefile" -*- */
+
+;;; Changelog:
+;; (2012-09-29) 1.1.0: Added ant support. minibuffer now shows
+;;                     makefile filename and its directory-name.
 
 ;;; Code:
 
@@ -53,9 +59,12 @@
   :group 'makefile-runner)
 
 ;;;###autoload
-(defcustom makefile-runner--target-exclusive-regexp "\\(^\\.\\)\\|[\\$\\%]"
-  "Regular expression to exclude targets from the auto-complete list"
-  :type 'regexp
+
+(defcustom makefile-runner--makefiles
+  '(("Makefile"  makefile-runner--get-targets-make "cd %s; make %s")
+    ("build.xml" makefile-runner--get-targets-ant "cd %s; ant %s"))
+  "A list of (MAKEFILE-FILENAME FIND-TARGETS-PROCEDURE MAKEFILE-RUN-STRING)."
+  :type 'sexp
   :group 'makefile-runner)
 
 (defvar makefile-runner--last-target nil
@@ -65,40 +74,70 @@
   "History of makefile targets")
 
 (defun makefile-runner--find-makefile ()
-  "Search current buffer's directory for a Makefile. If no
-Makefile exists, continue searching in the directory's parent. If
-no Makefile exists in any directory parents return nil."
+  "Search current buffer's directory for makefiles. If no
+makefiles exists, continue searching in the directory's parent. If
+no makefiles exists in any directory parents return nil."
   (when (buffer-file-name)
-    (let ((path (file-name-directory (buffer-file-name)))
-          (makefile-path ""))
-      (while (and (>= (length path) 3)
-                  (not (equal ".." (substring path -2)))
-                  (not (file-exists-p (setq makefile-path
-                                            (concat path "/Makefile")))))
-        (setq path (expand-file-name ".." path)))
-      (and (file-exists-p makefile-path)
-           makefile-path))))
+    (let* ((path (file-name-directory (buffer-file-name)))
+           (makefile nil)
+           (path-up (function 
+                     (lambda ()
+                       (setq path (expand-file-name ".." path))
+                       (not (equal ".." (substring path -2))))))
+           (find-makefile 
+            (function 
+             (lambda ()
+               (let ((makefiles (mapcar 'car makefile-runner--makefiles)))
+                 (while (and (not makefile) (not (null makefiles)))
+                   (let ((makefile-path (concat path "/" (car makefiles))))
+                     (when (file-exists-p makefile-path)
+                       (setq makefile makefile-path)))
+                   (setq makefiles (cdr makefiles)))
+                 makefile)))))
+      (while (and (funcall path-up) (not (funcall find-makefile))) nil)
+      makefile)))
 
-(defun makefile-runner--get-targets (file)
+(defun makefile-runner--get-targets-make (file)
   "Search FILE for Makefile targets and return them as a list of
 strings. Does not add targets that match the regular expression
-in `makefile-runner--target-exclusive-regexp'."
-  (with-temp-buffer
-    (insert-file-contents file)
-    (goto-char (point-max))
-    (let ((targets nil))
-      (while (re-search-backward "^\\([^:\n#[:space:]]+?\\):" 
-                                 (not 'bound) 'noerror)
-        (unless (string-match makefile-runner--target-exclusive-regexp
-                              (match-string 1))
-          (setq targets (cons (match-string 1) targets))))
-      targets)))
+in \"\\(^\\.\\)\\|[\\$\\%]\"."
+  (let ((target-exclude-regexp "\\(^\\.\\)\\|[\\$\\%]"))
+    (with-temp-buffer
+      (insert-file-contents file)
+      (goto-char (point-max))
+      (let ((targets nil))
+        (while (re-search-backward "^\\([^:\n#[:space:]]+?\\):" 
+                                   (not 'bound) 'noerror)
+          (unless (string-match target-exclude-regexp
+                                (match-string 1))
+            (setq targets (cons (match-string 1) targets))))
+        targets))))
+
+(defun makefile-runner--get-targets-ant (file)
+  "Search the ant file 'build.xml' in FILE and return a list of
+targets."
+  (delq nil
+        (mapcar (lambda (e) (if (and (listp e) (equal (car e) 'target))
+                                (cdr (assoc 'name (cadr e)))
+                              nil))
+                (with-temp-buffer
+                  (insert-file-contents file)
+                  (libxml-parse-xml-region (point-min) (point-max))))))
+  
+
+(defun makefile-runner--get-targets (file)
+  "Find appropiate get-targets procedure from
+`makefile-runner--makefiles' and execute it on file. Returns a
+list of targets."
+  (let ((get-targets (cadr (assoc (file-name-nondirectory file) 
+                                  makefile-runner--makefiles))))
+    (funcall get-targets file)))
 
 ;;;###autoload
 (defun makefile-runner (target &optional makefile)
-  "Run nearest Makefile with TARGET.
+  "Run nearest makefile with TARGET.
 
-When calling interactively. The targets from the nearest Makefile
+When calling interactively. The targets from the nearest makefile
 is extracted and the user is asked which target to use.
 
 Closest Makefile means first Makefile found when seacrching
@@ -107,18 +146,18 @@ upwards from the directory of the current buffer.
 Set `makefile-runner--makefile' to use a specific Makefile rather
 than search for one.
 
-Change `makefile-runner--target-exclusive-regexp' to change which
-targets are excluded."
+By default it searches for 'Makefile' and 'build.xml' files. To
+add more makefiles or change the priority ordering see
+`makefile-runner--makefiles'."
   (interactive
    (let* ((makefile (or makefile-runner--makefile
                         (makefile-runner--find-makefile)))
-          (makefile-dir (and makefile (file-name-directory makefile))))
+          (makefile-path (concat (file-name-nondirectory 
+                                  (substring (file-name-directory makefile) 
+                                             0 -1))
+                                 "/" (file-name-nondirectory makefile))))
      (if makefile
-         (list (completing-read (format "%s make: " 
-                                        (if (< (length makefile-dir) 40)
-                                            makefile-dir
-                                          (concat "..."
-                                                  (substring makefile-dir -37))))
+         (list (completing-read (concat makefile-path ": ")
                                 (makefile-runner--get-targets makefile)
                                 nil nil makefile-runner--last-target
                                 'makefile-runner--hist "")
@@ -127,8 +166,12 @@ targets are excluded."
               (list nil nil)))))
   (when target
     (setq makefile-runner--last-target target)
-    (compile (concat "cd " (file-name-directory makefile) "; "
-                     "make " target "\n"))))
+    (let ((makefile-runstring (car (cddr (assoc (file-name-nondirectory makefile) 
+                                                makefile-runner--makefiles)))))
+      (compile (concat (format makefile-runstring 
+                               (file-name-directory makefile)
+                               target)
+                       "\n")))))
 
 (provide 'makefile-runner)
 
