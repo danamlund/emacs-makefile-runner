@@ -4,7 +4,7 @@
 
 ;; Author: Dan Amlund Thomsen <dan@danamlund.dk>
 ;; URL: http://danamlund.dk/emacs/make-runner.html
-;; Version: 1.1.1
+;; Version: 1.1.2
 ;; Created: 2009-01-01
 ;; By: Dan Amlund Thomsen
 ;; Keywords: makefile, make, ant, build
@@ -45,6 +45,7 @@
 ;; /* -*- makefile-runner--makefile: "../Makefile" -*- */
 
 ;;; Changelog:
+;; (2012-09-29) 1.1.2: Now also searches for makefiles next to the current file
 ;; (2012-09-29) 1.1.1: Better handles no-makefile-found.
 ;; (2012-09-29) 1.1.0: Added ant support. minibuffer now shows
 ;;                     makefile filename and its directory-name.
@@ -79,7 +80,7 @@
 makefiles exists, continue searching in the directory's parent. If
 no makefiles exists in any directory parents return nil."
   (when (buffer-file-name)
-    (let* ((path (file-name-directory (buffer-file-name)))
+    (let* ((path (substring (file-name-directory (buffer-file-name)) 0 -1))
            (makefile nil)
            (path-up (function 
                      (lambda ()
@@ -96,7 +97,7 @@ no makefiles exists in any directory parents return nil."
                        (setq makefile makefile-path)))
                    (setq makefiles (cdr makefiles)))
                  makefile)))))
-      (while (and (funcall path-up) (not (funcall find-makefile))) nil)
+      (while (and (not (funcall find-makefile)) (funcall path-up)) nil)
       makefile)))
 
 (defun makefile-runner--get-targets-make (file)
