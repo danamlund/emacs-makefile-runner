@@ -63,8 +63,8 @@
 ;;;###autoload
 
 (defcustom makefile-runner--makefiles
-  '(("Makefile"  makefile-runner--get-targets-make "cd %s; make %s")
-    ("build.xml" makefile-runner--get-targets-ant "cd %s; ant %s"))
+  '(("Makefile"  makefile-runner--get-targets-make "cd \"%s\"; make %s")
+    ("build.xml" makefile-runner--get-targets-ant "cd \"%s\"; ant %s"))
   "A list of (MAKEFILE-FILENAME FIND-TARGETS-PROCEDURE MAKEFILE-RUN-STRING)."
   :type 'sexp
   :group 'makefile-runner)
