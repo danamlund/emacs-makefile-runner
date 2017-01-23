@@ -4,7 +4,7 @@
 
 ;; Author: Dan Amlund Thomsen <dan@danamlund.dk>
 ;; URL: http://danamlund.dk/emacs/make-runner.html
-;; Version: 1.1.2
+;; Version: 1.1.3
 ;; Created: 2009-01-01
 ;; By: Dan Amlund Thomsen
 ;; Keywords: makefile, make, ant, build
@@ -45,6 +45,7 @@
 ;; /* -*- makefile-runner--makefile: "../Makefile" -*- */
 
 ;;; Changelog:
+;; (2016-01-23) 1.1.3: Fix searching subdirectories with spaces in them (AdamNiederer)
 ;; (2012-09-29) 1.1.2: Now also searches for makefiles next to the current file
 ;; (2012-09-29) 1.1.1: Better handles no-makefile-found.
 ;; (2012-09-29) 1.1.0: Added ant support. minibuffer now shows
